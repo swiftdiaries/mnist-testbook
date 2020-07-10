@@ -1,0 +1,94 @@
+name: "Test Pipeline"
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+
+    - name: Install yq, Argo CLI
+      run: |
+        sudo add-apt-repository ppa:rmescandon/yq
+        sudo apt update
+        sudo apt install yq -y
+        echo "Download the Argo binary..."
+        curl -sLO https://github.com/argoproj/argo/releases/download/v2.7.2/argo-linux-amd64
+
+        echo "Make Argo binary executable..."
+        chmod +x argo-linux-amd64
+
+        echo "Move binary to path..."
+        mv ./argo-linux-amd64 ${GITHUB_WORKSPACE}/argo
+
+        echo "Test installation..."
+        ${GITHUB_WORKSPACE}/argo version
+
+    - uses: goanpeca/setup-miniconda@v1
+      with:
+        miniconda-version: 'latest'
+        activate-environment: kubeflow-fairing
+        python-version: 3.8
+        auto-activate-base: false
+
+    - uses: engineerd/setup-kind@v0.3.0
+      with:
+          version: "v0.7.0"
+
+    - name: Generate BLERSSI pipeline
+      shell: bash -l {0}
+      run: |
+        echo "Conda environment info:"
+        conda info
+
+        echo "Installing pip packages..."
+        pip install papermill
+        pip install kfp==0.4.0
+        conda install ipykernel
+        python -m ipykernel install --user --name kubeflow-fairing --display-name "Python (kubeflow-fairing)"
+
+        echo "Compiling the pipeline..."
+        mkdir -p ${GITHUB_WORKSPACE}/test/build
+
+        # papermill apps/networking/ble-localization/onprem/pipelines/local-BLERSSI-Pipeline-Deployment.ipynb test/build/local-output-blerssi.ipynb
+        # yq w -i blerssi.yaml "spec.volumes[0].name" "nfs"
+        # yq w -i blerssi.yaml "spec.volumes[0].persistentVolumeClaim.claimName" "nfs-wf-volume"
+        # cat blerssi.yaml | tr '_' '-' > blerssi_formatted.yaml
+
+        # echo "Pipeline definition: "
+        # cat blerssi_formatted.yaml
+
+        # echo "Check linting on Argo pipeline..."
+        # ${GITHUB_WORKSPACE}/argo lint blerssi_formatted.yaml
+
+    # - uses: GoogleCloudPlatform/github-actions/setup-gcloud@master
+    #   with:
+    #     version: '286.0.0'
+    #     service_account_email: ${{ secrets.GKE_SA_EMAIL }}
+    #     service_account_key: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+    #     project_id: ${{ secrets.GKE_PROJECT_ID }}
+
+    # - name: Run and Check Pipeline output
+    #   shell: bash -l {0}
+    #   env:
+    #     GCP_ACCOUNT:  ${{ secrets.GKE_SA_EMAIL }}
+    #   run: |
+    #     echo "Set cluster account..."
+    #     gcloud config set account "$GCP_ACCOUNT"
+
+    #     echo "Get cluster creds..."
+    #     gcloud container clusters get-credentials "$GKE_CLUSTER" --zone "$GKE_ZONE"
+
+    #     echo "Run BLERSSI pipeline..."
+    #     kfp --endpoint ${{ secrets.KF_PIPELINES_HOST }} run submit -e "kfp-cli" -r "blerssi" -f blerssi_formatted.yaml
+
+    #     echo "Wait for pipeline to finish"
+    #     sleep 60
+
+    #     echo "Get Argo workflow status"
+    #     ${GITHUB_WORKSPACE}/argo list --all-namespaces
