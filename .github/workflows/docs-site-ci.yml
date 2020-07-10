@@ -1,0 +1,27 @@
+name: Docs CI
+on:
+  push:
+    branches:
+      - master # need to filter here so we only deploy when there is a push to master
+  # no filters on pull requests, so intentionally left blank
+  pull_request: 
+
+jobs:
+  build-site:
+    runs-on: ubuntu-latest
+    
+    - name: convert notebooks and word docs to posts
+      uses: fastai/fastpages@v2.1.5 
+
+    - name: Jekyll build
+      uses: docker://jekyll/jekyll
+      with:
+        args: jekyll build
+
+    - name: Deploy
+      uses: peaceiris/actions-gh-pages@v3
+      if: github.event_name == 'push'
+      with:
+        deploy_key: ${{ secrets.SSH_DEPLOY_KEY }}
+        publish_branch: gh-pages
+        publish_dir: ./_site
