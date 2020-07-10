@@ -16,6 +16,10 @@ jobs:
       with:
         persist-credentials: false
 
+    - name: create _posts directory
+      run: |
+        mkdir -p _posts
+
     - name: convert notebooks and word docs to posts
       uses: fastai/fastpages@v2.1.5 
       
